@@ -1,3 +1,7 @@
+// This file goes in: farmshield/netlify/functions/analyze.js
+// It safely calls Google's Gemini AI from Netlify's server (not the browser)
+// so your API key stays hidden and secure.
+
 exports.handler = async function (event) {
   // Only allow POST requests
   if (event.httpMethod !== "POST") {
@@ -7,33 +11,30 @@ exports.handler = async function (event) {
   try {
     const { imageBase64, mediaType, langName } = JSON.parse(event.body);
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.VITE_ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1000,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", media_type: mediaType, data: imageBase64 },
-              },
-              {
-                type: "text",
-                text: `You are an expert agricultural plant pathologist. Analyze this plant image. Respond ONLY in JSON, no extra text, no markdown. Use ${langName} language for diseaseName, crop, severity, solution, prevention fields. JSON format: {"hasDisease": true/false, "diseaseName": "name", "crop": "crop name", "severity": "Low/Medium/High/Severe", "confidence": 85, "solution": "treatment steps", "prevention": "prevention tips"}`,
-              },
-            ],
-          },
-        ],
-      }),
-    });
+    const prompt = `You are an expert agricultural plant pathologist. Analyze this plant image. Respond ONLY in JSON, no extra text, no markdown formatting, no backticks. Use ${langName} language for diseaseName, crop, severity, solution, prevention fields. JSON format: {"hasDisease": true/false, "diseaseName": "name", "crop": "crop name", "severity": "Low/Medium/High/Severe", "confidence": 85, "solution": "treatment steps", "prevention": "prevention tips"}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inline_data: {
+                    mime_type: mediaType,
+                    data: imageBase64,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
 
     const data = await response.json();
 
@@ -44,7 +45,7 @@ exports.handler = async function (event) {
       };
     }
 
-    const text = data.content?.map((c) => c.text || "").join("");
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
 
     return {
