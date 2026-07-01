@@ -14,7 +14,7 @@ exports.handler = async function (event) {
     const prompt = `You are an expert agricultural plant pathologist. Analyze this plant image. Respond ONLY in JSON, no extra text, no markdown formatting, no backticks. Use ${langName} language for diseaseName, crop, severity, solution, prevention fields. JSON format: {"hasDisease": true/false, "diseaseName": "name", "crop": "crop name", "severity": "Low/Medium/High/Severe", "confidence": 85, "solution": "treatment steps", "prevention": "prevention tips"}`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
