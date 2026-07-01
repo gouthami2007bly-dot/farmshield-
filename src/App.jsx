@@ -147,31 +147,37 @@ export default function App() {
         r.readAsDataURL(imageFile);
       });
       const langName = lang === "kn" ? "Kannada" : lang === "hi" ? "Hindi" : "English";
-      const GEMINI_KEY = "AIzaSyCo2_tFqnMekkBQvJHmzsz_d771hwKWcns";
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: `You are an expert agricultural plant pathologist. Analyze this plant image. Respond ONLY in JSON, no extra text, no markdown. Use ${langName} language for diseaseName, crop, severity, solution, prevention. JSON: {"hasDisease": true/false, "diseaseName": "name", "crop": "crop name", "severity": "Low/Medium/High/Severe", "confidence": 85, "solution": "treatment steps", "prevention": "prevention tips"}` },
-                { inline_data: { mime_type: imageFile.type || "image/jpeg", data: b64 } }
-              ]
-            }]
-          }),
-        }
-      );
-      const data = await resp.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+
+      // Calls our own Netlify function, which holds the Gemini key server-side.
+      const resp = await fetch("/.netlify/functions/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: b64,
+          mediaType: imageFile.type || "image/jpeg",
+          langName,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.text();
+        throw new Error(`Analyze function failed (${resp.status}): ${errBody}`);
+      }
+
+      const parsed = await resp.json();
+
+      if (!parsed || typeof parsed.hasDisease === "undefined") {
+        throw new Error("Unexpected response shape from analyze function");
+      }
+
       setResult(parsed);
-    } catch {
-      const db = DISEASES_DB[lang] || DISEASES_DB.en;
-      const r = db[Math.floor(Math.random() * db.length)];
-      setResult({ hasDisease: true, diseaseName: r.name, crop: r.crop, severity: r.severity, confidence: 82, solution: r.solution, prevention: r.prevention });
+    } catch (err) {
+      console.error("Disease detection failed:", err);
+      setError(
+        lang === "kn" ? "ವಿಶ್ಲೇಷಣೆ ವಿಫಲವಾಗಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ." :
+        lang === "hi" ? "विश्लेषण विफल हुआ। कृपया पुनः प्रयास करें।" :
+        "Analysis failed. Please check your connection and try again."
+      );
     }
     setAnalyzing(false);
   };
