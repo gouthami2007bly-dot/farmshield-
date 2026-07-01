@@ -45,8 +45,32 @@ exports.handler = async function (event) {
       };
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const candidate = data.candidates?.[0];
+    if (!candidate) {
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: "No candidates returned by Gemini", raw: data }),
+      };
+    }
+    if (candidate.finishReason && candidate.finishReason !== "STOP") {
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: `Gemini stopped early: ${candidate.finishReason}`, raw: data }),
+      };
+    }
+
+    const text = candidate.content?.parts?.[0]?.text || "";
     const clean = text.replace(/```json|```/g, "").trim();
+
+    // Validate it's actually parseable JSON before sending to the client
+    try {
+      JSON.parse(clean);
+    } catch {
+      return {
+        statusCode: 502,
+        body: JSON.stringify({ error: "Gemini response was not valid JSON", raw: text }),
+      };
+    }
 
     return {
       statusCode: 200,
