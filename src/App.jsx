@@ -149,7 +149,7 @@ export default function App() {
       const langName = lang === "kn" ? "Kannada" : lang === "hi" ? "Hindi" : "English";
 
       // Calls our own Netlify function, which holds the Gemini key server-side.
-      const resp = await fetch("/.netlify/functions/analyze", {
+      const resp = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
